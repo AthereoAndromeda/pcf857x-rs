@@ -1,3 +1,4 @@
+pub mod pc;
 pub mod pcf8574;
 pub mod pcf8575;
 

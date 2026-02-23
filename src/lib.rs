@@ -163,5 +163,7 @@ pub use crate::split_pins::{
     pcf8574, pcf8575, P0, P1, P10, P11, P12, P13, P14, P15, P16, P17, P2, P3, P4, P5, P6, P7,
 };
 mod devices;
+#[cfg(feature = "async")]
+pub use crate::devices::pc::PcAsync;
 pub use crate::devices::pcf8574::{Pcf8574, Pcf8574a};
 pub use crate::devices::pcf8575::Pcf8575;
