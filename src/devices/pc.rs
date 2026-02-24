@@ -1,6 +1,8 @@
 #![cfg(feature = "async")]
-use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
-use embassy_sync::mutex::Mutex;
+use core::cell::{RefCell, RefMut};
+
+// use embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex;
+// use embassy_sync::mutex::Mutex;
 use embedded_hal_async::i2c::I2c;
 
 use crate::split_pins::pcf8574;
@@ -10,7 +12,7 @@ use crate::{Error, PinFlag, SlaveAddr};
 #[derive(Debug, Default)]
 pub struct PcAsync<I2C> {
     /// Data
-    pub(crate) data: Mutex<CriticalSectionRawMutex, PcData<I2C>>,
+    pub(crate) data: RefCell<PcData<I2C>>,
 }
 
 #[derive(Debug, Default)]
@@ -35,7 +37,7 @@ where
             last_set_mask: 0,
         };
         PcAsync {
-            data: Mutex::new(data),
+            data: RefCell::new(data),
         }
     }
 
@@ -61,14 +63,10 @@ where
         // self.do_on_acquired(|dev| Self::_set(dev, bits)).await
         // self.do_on_acquired(async |dev|elf::_set(dev, bits).await)
         //     .await
-        Self::_set(&self.data, bits).await
+        Self::_set(self.data.borrow_mut(), bits).await
     }
 
-    pub(crate) async fn _set(
-        dev: &Mutex<CriticalSectionRawMutex, PcData<I2C>>,
-        bits: u8,
-    ) -> Result<(), Error<E>> {
-        let mut dev = dev.lock().await;
+    pub(crate) async fn _set(mut dev: RefMut<'_, PcData<I2C>>, bits: u8) -> Result<(), Error<E>> {
         let address = dev.address;
         dev.i2c.write(address, &[bits]).await.map_err(Error::I2C)?;
         dev.last_set_mask = bits;
@@ -78,16 +76,8 @@ where
     /// Set the status of all I/O pins repeatedly by looping through each array element
     pub async fn write_array(&mut self, data: &[u8]) -> Result<(), Error<E>> {
         if let Some(last) = data.last() {
-            // self.do_on_acquired(async |mut dev| {
-            //     let mut dev = dev.lock().await;
-            //     let address = dev.address;
-            //     dev.i2c.write(address, &data).await.map_err(Error::I2C)?;
-            //     dev.last_set_mask = *last;
-            //     Ok(())
-            // })
-            // .await?;
-
-            let mut dev = self.data.lock().await;
+            // let mut dev = self.data.lock().await;
+            let mut dev = self.data.borrow_mut();
             let address = dev.address;
             dev.i2c.write(address, &data).await.map_err(Error::I2C)?;
             dev.last_set_mask = *last;
@@ -115,14 +105,13 @@ where
 
         // self.do_on_acquired(async |dev| Self::_get(dev, mask).await)
         //     .await
-        Self::_get(&self.data, mask).await
+        Self::_get(self.data.borrow_mut(), mask).await
     }
 
     pub(crate) async fn _get(
-        dev: &Mutex<CriticalSectionRawMutex, PcData<I2C>>,
+        mut dev: RefMut<'_, PcData<I2C>>,
         mask: PinFlag,
     ) -> Result<u8, Error<E>> {
-        let mut dev = dev.lock().await;
         let mask = mask.mask as u8 | dev.last_set_mask;
         let address = dev.address;
         // configure selected pins as inputs
@@ -146,15 +135,8 @@ where
             if (mask.mask >> 8) != 0 {
                 return Err(Error::InvalidInputData);
             }
-            // self.do_on_acquired(|mut dev| {
-            //     let mask = mask.mask as u8 | dev.last_set_mask;
-            //     let address = dev.address;
-            //     // configure selected pins as inputs
-            //     dev.i2c.write(address, &[mask]).map_err(Error::I2C)?;
-
-            //     dev.i2c.read(address, &mut data).map_err(Error::I2C)
-            // })?;
-            let mut dev = self.data.lock().await;
+            // let mut dev = self.data.lock().await;
+            let mut dev = self.data.borrow_mut();
             let mask = mask.mask as u8 | dev.last_set_mask;
             let address = dev.address;
             // configure selected pins as inputs
